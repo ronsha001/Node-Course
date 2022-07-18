@@ -46,8 +46,13 @@ section23 - Adding Payments/.env
 section24 - Working with REST APIs - The Basics/node_modules
 section24 - Working with REST APIs - The Basics/.env
 
-section25 - Working with REST APIs - The Practical Application/node_modules
+section25 - Working with REST APIs - The Practical Application/client/node_modules
+section25 - Working with REST APIs - The Practical Application/server/node_modules
+section25 - Working with REST APIs - The Practical Application/server/.env
 
+section26 - Understanding Async Await in NodeJS/client/node_modules
+section26 - Understanding Async Await in NodeJS/server/node_modules
+section26 - Understanding Async Await in NodeJS/server/.env
 
 # Quests
 compie quest
