@@ -58,5 +58,12 @@ section27 - Understanding Websockets and SocketIO/client/node_modules
 section27 - Understanding Websockets and SocketIO/server/node_modules
 section27 - Understanding Websockets and SocketIO/server/.env
 
+section28 - Working with GraphQL/client/node_modules
+section28 - Working with GraphQL/server/node_modules
+section28 - Working with GraphQL/server/.env
+
+section29 - Deploying our App/node_modules
+section29 - Deploying our App/.env
+
 # Quests
 compie quest
