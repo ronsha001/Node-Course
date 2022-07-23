@@ -1,7 +1,6 @@
 const { validationResult } = require("express-validator");
 
-const fileHelper = require("../util/file");
-
+const cloudinary = require("../util/cloudinary");
 const Product = require("../models/product");
 
 exports.getAddProduct = (req, res, next) => {
@@ -15,9 +14,9 @@ exports.getAddProduct = (req, res, next) => {
   });
 };
 
-exports.postAddProduct = (req, res, next) => {
+exports.postAddProduct = async (req, res, next) => {
   const title = req.body.title;
-  const image = req.file;
+  const image = req.body.image;
   const price = req.body.price;
   const description = req.body.description;
   if (!image) {
@@ -37,7 +36,6 @@ exports.postAddProduct = (req, res, next) => {
   }
 
   const errors = validationResult(req);
-
   if (!errors.isEmpty()) {
     return res.status(422).render("admin/edit-product", {
       pageTitle: "Add Product",
@@ -54,45 +52,27 @@ exports.postAddProduct = (req, res, next) => {
       validationErrors: errors.array(),
     });
   }
-
-  const imageUrl = image.path;
-
-  const product = new Product({
-    title: title,
-    price: price,
-    description: description,
-    imageUrl: imageUrl,
-    userId: req.user,
-  });
-  product
-    .save()
-    .then((result) => {
-      // console.log(result);
-      console.log("Created Product");
-      res.redirect("/admin/products");
-    })
-    .catch((err) => {
-      // return res.status(422).render("admin/edit-product", {
-      //   pageTitle: 'Add Product',
-      //   path: "/admin/add-product",
-      //   editing: false,
-      //   hasError: true,
-      //   errorMessage: 'Database operation failed, please try again.',
-      //   product: {
-      //     title: title,
-      //     imageUrl: imageUrl,
-      //     price: price,
-      //     description: description
-      //   },
-      //   validationErrors: [],
-      // });
-
-      // res.redirect('/500');
-
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
+  const imageBase64 = image;
+  try {
+    const uploadedResponse = await cloudinary.uploader.upload(imageBase64, {
+      upload_preset: "dev_setups",
     });
+    const product = new Product({
+      title: title,
+      price: price,
+      description: description,
+      imageUrl: uploadedResponse.url,
+      userId: req.user,
+    });
+    await product.save();
+    console.log("Created Product");
+    res.redirect("/admin/products");
+  } catch (err) {
+    console.log(err);
+    const error = new Error(err);
+    error.httpStatusCode = 500;
+    return next(error);
+  }
 };
 
 exports.getEditProduct = (req, res, next) => {
@@ -122,15 +102,14 @@ exports.getEditProduct = (req, res, next) => {
     });
 };
 
-exports.postEditProduct = (req, res, next) => {
+exports.postEditProduct = async (req, res, next) => {
   const prodId = req.body.productId;
   const updatedTitle = req.body.title;
   const updatedPrice = req.body.price;
-  const image = req.file;
+  const image = req.body.image;
   const updatedDesc = req.body.description;
 
   const errors = validationResult(req);
-
   if (!errors.isEmpty()) {
     return res.status(422).render("admin/edit-product", {
       pageTitle: "Add Product",
@@ -147,28 +126,38 @@ exports.postEditProduct = (req, res, next) => {
       validationErrors: errors.array(),
     });
   }
-  Product.findById(prodId)
-    .then((product) => {
-      if (product.userId.toString() !== req.user._id.toString()) {
-        return res.redirect("/");
-      }
-      product.title = updatedTitle;
-      product.price = updatedPrice;
-      product.description = updatedDesc;
-      if (image) {
-        fileHelper.deleteFile(product.imageUrl);
-        product.imageUrl = image.path;
-      }
-      return product.save().then((result) => {
-        console.log("UPDATED PRODUCT!");
-        res.redirect("/admin/products");
+  try {
+    const product = await Product.findById(prodId);
+    if (product.userId.toString() !== req.user._id.toString()) {
+      return res.redirect("/");
+    }
+    product.title = updatedTitle;
+    product.price = updatedPrice;
+    product.description = updatedDesc;
+    if (image) {
+      // Delete the old file
+      // the URL: https://res.cloudinary.com/djhbfnaz0/image/upload/v1658323985/tycxbzk2yckn8cwyn0j7.png
+      let public_id = product.imageUrl.split("/");
+      public_id = public_id[public_id.length - 1].split(".")[0];
+      await cloudinary.uploader.destroy(public_id, function (result) {
+        console.log(result);
       });
-    })
-    .catch((err) => {
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
-    });
+      // Upload new file
+      const uploadedResponse = await cloudinary.uploader.upload(image, {
+        upload_preset: "dev_setups",
+      });
+      product.imageUrl = uploadedResponse.url;
+    }
+
+    await product.save();
+    console.log("UPDATED PRODUCT!");
+    res.redirect("/admin/products");
+  } catch (err) {
+    console.log(err);
+    const error = new Error(err);
+    error.httpStatusCode = 500;
+    return next(error);
+  }
 };
 
 exports.getProducts = (req, res, next) => {
@@ -176,7 +165,6 @@ exports.getProducts = (req, res, next) => {
     // .select('title price -_id')
     // .populate('userId', 'name')
     .then((products) => {
-      console.log(products);
       res.render("admin/products", {
         prods: products,
         pageTitle: "Admin Products",
@@ -190,21 +178,25 @@ exports.getProducts = (req, res, next) => {
     });
 };
 
-exports.deleteProduct = (req, res, next) => {
+exports.deleteProduct = async (req, res, next) => {
   const prodId = req.params.productId;
-  Product.findById(prodId)
-    .then(product => {
-      if (!product) {
-        return next(new Error('Product not found.'));
-      }
-      fileHelper.deleteFile(product.imageUrl);
-      return Product.deleteOne({ _id: prodId, userId: req.user._id });
-    })
-    .then(() => {
-      console.log("DESTROYED PRODUCT");
-      res.status(200).json({message: 'Success!'});
-    })
-    .catch((err) => {
-      res.status(500).json({message: 'Deleting product failed.'});
+  try {
+    const product = await Product.findById(prodId);
+    if (!product) {
+      return next(new Error("Product not found."));
+    }
+    // Delete product file
+    // the URL: https://res.cloudinary.com/djhbfnaz0/image/upload/v1658323985/tycxbzk2yckn8cwyn0j7.png
+    let public_id = product.imageUrl.split("/");
+    public_id = public_id[public_id.length - 1].split(".")[0];
+    await cloudinary.uploader.destroy(public_id, function (result) {
+      console.log(result);
     });
+    
+    await Product.deleteOne({ _id: prodId, userId: req.user._id });
+    console.log("DESTROYED PRODUCT");
+    res.status(200).json({ message: "Success!" });
+  } catch (err) {
+    res.status(500).json({ message: "Deleting product failed." });
+  }
 };

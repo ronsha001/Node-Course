@@ -35,8 +35,7 @@
                 <label for="image">Image URL</label>
                 <input 
                     type="file" 
-                    name="image"
-                    id="image" 
+                    onchange="encodeImageFileAsURL(this)"
                 >
             </div>
             <div class="form-control">
@@ -59,7 +58,9 @@
             <% } %>
 
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" id="image" name="image">
             <button class="btn" type="submit"><% if (editing) { %>Update Product<% } else { %>Add Product<% } %></button>
         </form>
     </main>
+    <script src="/js/admin.js"></script>
 <%- include('../includes/end.ejs') %>

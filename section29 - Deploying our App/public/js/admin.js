@@ -21,3 +21,12 @@ const deleteProduct = (btn) => {
       console.log(err);
     });
 };
+
+function encodeImageFileAsURL(element) {
+  var file = element.files[0];
+  var reader = new FileReader();
+  reader.onloadend = function() {
+    document.getElementById('image').value = reader.result;
+  }
+  reader.readAsDataURL(file);
+}

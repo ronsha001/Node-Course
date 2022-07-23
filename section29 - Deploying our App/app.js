@@ -1,4 +1,6 @@
 const path = require("path");
+const fs = require("fs");
+// const https = require("https");
 
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -7,15 +9,30 @@ const session = require("express-session");
 const MongoDBStore = require("connect-mongodb-session")(session);
 const csrf = require("csurf");
 const flash = require("connect-flash");
-const dotenv = require("dotenv");
 const multer = require("multer");
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 } = require("uuid");
+const helmet = require("helmet");
+const compression = require("compression");
+const morgan = require("morgan");
+const dotenv = require('dotenv');
 
 const errorController = require("./controllers/error");
 const User = require("./models/user");
 
 const app = express();
 dotenv.config();
+
+const accessLogStream = fs.createWriteStream(
+  path.join(__dirname, "access.log"),
+  { flags: "a" }
+);
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+})); // Helmet helps you secure your Express apps by setting various HTTP headers.
+app.use(compression()); // The middleware will attempt to compress response bodies for all request that traverse through the middleware
+app.use(morgan("combined", { stream: accessLogStream })); // HTTP request logger middleware for node.js
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -24,6 +41,9 @@ const store = new MongoDBStore({
   collection: "sessions",
 });
 const csrfProtection = csrf();
+
+// const privateKey = fs.readFileSync("server.key");
+// const certificate = fs.readFileSync("server.cert");
 
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -58,7 +78,7 @@ app.use(
   multer({ storage: fileStorage, fileFilter: fileFilter }).single("image")
 );
 app.use(express.static(path.join(__dirname, "public")));
-app.use('/images', express.static(path.join(__dirname, "images")));
+// app.use("/images", express.static(path.join(__dirname, "images")));
 
 app.use(
   session({
@@ -97,11 +117,7 @@ app.use((req, res, next) => {
 app.use("/admin", adminRoutes);
 app.use(shopRoutes);
 app.use(authRoutes);
-// app.get('/:imagePath', (req, res, next) => {
-//   const imagePath = req.params.imagePath;
-//   console.log(imagePath);
-//   next();
-// })
+
 app.use("/500", errorController.get500);
 
 app.use(errorController.get404);
@@ -118,7 +134,10 @@ app.use((error, req, res, next) => {
 mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then((result) => {
-    app.listen(3000);
+    // https
+    //   .createServer({ key: privateKey, cert: certificate }, app)
+    //   .listen(process.env.PORT || 3000);
+    app.listen(process.env.PORT || 3000);
   })
   .catch((err) => {
     console.log(err);
